@@ -1,5 +1,7 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
+author: "Andrew Mendelsohn"
+date:   "March 31, 2016"
 output: 
   html_document:
     keep_md: true
@@ -7,19 +9,79 @@ output:
 
 
 ## Loading and preprocessing the data
+This R markdown file assumes that data file activity.csv is in the same
+directory as the markdown file. The activity.csv file can be unzipped from 
+the activity.zip file which is part of the fit repository.We begin by loading the
+.csv file. We'll make a version that strips NAs so we can do initial exploration
+before determining how to replace the missing values. We'll also add a column which will
+be the date in lubridate format which will make it easier to determine weekday. The interval
+column is coded as 0-55,100-155,200-255-- in other words the hour is coded in the hundreds digits.
+We will add a column which is simply 0-55,60,65,70,... to provide a uniform x-axis for our graphs
 
+```{r, echo=TRUE}
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(stringr)
+
+actOrig <- read.csv("activity.csv")
+actMod1 <- mutate(actOrig, datep = ymd(date), int2 = 60*(interval %/% 100) + (interval %% 100) )
+actMod1cln <- actMod1[!is.na(actMod1$steps),]
+```
 
 
 ## What is mean total number of steps taken per day?
-
-
+We'll use summarize to find the total number of steps for each day,
+then get the mean of that number. We'll also plot a histogram of the number of steps.
+```{r, echo=TRUE}
+sByDay <- summarize(group_by(actMod1cln,date), tStep = sum(steps))
+print(paste("Mean Total Steps per Day =",format(mean(sByDay$tStep),nSmall=2)))
+print(paste("Median Total Steps per Day =",format(median(sByDay$tStep),nSmall=2)))
+hist(sByDay$tStep, breaks=20, xlab="Number of Steps per day",main="Histogram of Steps/Day")
+```
 
 ## What is the average daily activity pattern?
+Once again, we'll use summarize to find the average number of steps for each interval
+```{r, echo=TRUE}
+sByInt <- summarize(group_by(actMod1cln,int2),mStep = mean(steps))
+with(sByInt,qplot(int2,mStep,main="Average Steps per 5 Minute Interval",geom='line',xlab="Minutes",ylab = "Mean Steps"))
+```
+We also find the interval with the maximum steps and compute the corresponding time of day
+```{r, echo=TRUE}
+maxInt <- sByInt$int2[which.max(sByInt$mStep)]
+mt <- dmy("1:1:2016")+minutes(maxInt)
+mt <= as.character(mt)
+mt <- str_sub(mt,start=-8)
+print(paste("Maxium Steps Occur at Minutes =",as.character(maxInt)))
+print(paste("which corresponds to time =",mt))
+```
 
-
-
-## Imputing missing values
-
+## Inputing missing values
+For each NA value in the original steps column, we will replace it with the average value for the corresponding interval
+that we've just computed. Then we'll replot the histogram and the mean and median.
+```{r, echo=TRUE}
+for (i in 1:dim(actMod1)[1]) {
+    if (is.na(actMod1$steps[i])) {
+        intv <- actMod1$int2[i]
+        inx  <- which(sByInt$int2==intv)
+        actMod1$steps[i]=sByInt$mStep[inx]
+    }
+}
+sByDayFill = summarize(group_by(actMod1,date),tStep=sum(steps))
+hist(sByDayFill$tStep, breaks=20, xlab="Number of Steps per day",main="Histogram of Steps/Day (Filled In Data)")
+print(paste("Mean Total Steps per Day (Filled Data) =",format(mean(sByDayFill$tStep),nSmall=2)))
+print(paste("Median Total Steps per Day (Filled Data) =",format(median(sByDayFill$tStep),nSmall=2)))
+```
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+We'll use our newly filled dataframe actMod1 to answer this question. First we'll add a logical
+column weekend to differentiate weekend days. Then we'll create a summary by interval and weekend and plot it.
+```{r, echo=TRUE}
+actMod2 <- mutate(actMod1,weekend=wday(actMod1$datep)%in%c(1,7))
+sByInt2 <- summarize(group_by(actMod2,int2,weekend),mStep=mean(steps))
+sByInt3 <- mutate(sByInt2,weekend = as.factor(weekend))
+levels(sByInt3$weekend) = c("Weekday","Weekend")
+qplot(int2,mStep,data=sByInt3,geom='line',facets = '~weekend',main="Differing Activity Patterns For Weekdays vs. Weekends",xlab="Minutes Since Midnight",ylab="Steps")
+```
+As expected there is a significant difference in activity patterns for weekdays and weekends. Weekdays show an activity spike near 8:00am when presumably people are zipping off to work while weekends have a more uniform activity level.
