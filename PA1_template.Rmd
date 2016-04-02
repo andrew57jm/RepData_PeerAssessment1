@@ -9,9 +9,9 @@ output:
 
 
 ## Loading and preprocessing the data
-This R markdown file assumes that data file activity.csv is in the same
-directory as the markdown file. The activity.csv file can be unzipped from 
-the activity.zip file which is part of the fit repository.We begin by loading the
+This R markdown file assumes that data file activity.zip is in the same
+directory as the markdown file. The activity.csv file is unzipped As part
+of the script.We begin by unzipping and loading the
 .csv file. We'll make a version that strips NAs so we can do initial exploration
 before determining how to replace the missing values. We'll also add a column which will
 be the date in lubridate format which will make it easier to determine weekday. The interval
@@ -24,6 +24,7 @@ library(lubridate)
 library(ggplot2)
 library(stringr)
 
+unzip("activity.zip")
 actOrig <- read.csv("activity.csv")
 actMod1 <- mutate(actOrig, datep = ymd(date), int2 = 60*(interval %/% 100) + (interval %% 100) )
 actMod1cln <- actMod1[!is.na(actMod1$steps),]
@@ -72,7 +73,7 @@ hist(sByDayFill$tStep, breaks=20, xlab="Number of Steps per day",main="Histogram
 print(paste("Mean Total Steps per Day (Filled Data) =",format(mean(sByDayFill$tStep),nSmall=2)))
 print(paste("Median Total Steps per Day (Filled Data) =",format(median(sByDayFill$tStep),nSmall=2)))
 ```
-
+Neither the histogram or the mean and median show significant differences after filling in the missing values.
 
 ## Are there differences in activity patterns between weekdays and weekends?
 We'll use our newly filled dataframe actMod1 to answer this question. First we'll add a logical
@@ -84,4 +85,6 @@ sByInt3 <- mutate(sByInt2,weekend = as.factor(weekend))
 levels(sByInt3$weekend) = c("Weekday","Weekend")
 qplot(int2,mStep,data=sByInt3,geom='line',facets = '~weekend',main="Differing Activity Patterns For Weekdays vs. Weekends",xlab="Minutes Since Midnight",ylab="Steps")
 ```
+
+***
 As expected there is a significant difference in activity patterns for weekdays and weekends. Weekdays show an activity spike near 8:00am when presumably people are zipping off to work while weekends have a more uniform activity level.
